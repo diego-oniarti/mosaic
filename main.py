@@ -36,40 +36,56 @@ def create_image_with_squares(image_path, points, output_image_path, canvas_colo
     if original_image is None:
         return
 
-    # Compute square size based on the image area and number of points
-    # square_size = 0.8 * math.sqrt(original_image.width * original_image.height / len(points))
-    # square_size = int(square_size)
+    original_size = (original_image.width, original_image.height)
+    target_size = original_size
+    # target_size = (2560, 1440)
 
     # Create a blank canvas
-    canvas = Image.new('RGBA', (original_image.width, original_image.height), canvas_color)
+    canvas = Image.new('RGBA', target_size, canvas_color)
 
     for point in points:
         x = point.x
-        y = canvas.height-point.y
+        y = original_size[1]-point.y
+
+        # conversion to target size
+        x_target = x/original_image.width*target_size[0]
+        y_target = y/original_image.height*target_size[1]
+
         angle = point.angle
         square_size = math.sqrt(point.size)*0.85
+        half_size = square_size // 2
+
+        # conversion to target size
+        square_size_target = square_size * math.sqrt((target_size[0] * target_size[1]) / (original_size[0] * original_size[1]))
+
         square_size = int(square_size)
+        square_size_target = int(square_size_target)
+
+        if square_size > canvas.width or square_size > canvas.height:
+            square_size = 4
+            square_size_target = 4
 
         # Define the bounding box of the square before rotation
-        half_size = square_size // 2
+        # bbox = (max(0, x - half_size), max(0, y - half_size), min(original_image.width, x + half_size), min(original_image.height, y + half_size))
         bbox = (max(0, x - half_size), max(0, y - half_size), min(original_image.width, x + half_size), min(original_image.height, y + half_size))
 
         # Get the average color of the area under the square
         color = get_average_color(original_image, bbox)
 
         # Create a square with the average color
-        square = Image.new('RGBA', (square_size, square_size), (255, 0, 0, 0))
+        square = Image.new('RGBA', (square_size_target, square_size_target), (255, 0, 0, 0))
         draw = ImageDraw.Draw(square)
-        if square_size > canvas.width:
-            square_size = 4
-        draw.rectangle([(0, 0), (square_size, square_size)], fill=color)
+        try:
+            draw.rectangle([(0, 0), (square_size_target, square_size_target)], fill=color)
+        except ():
+            draw.rectangle([(0, 0), (square_size_target, square_size_target)], fill=(0, 0, 0))
 
         # Rotate the square by the given angle
         rotated_square = square.rotate(angle, expand=True)
 
         # Calculate the top-left corner to paste the rotated square
-        top_left_x = int(x - rotated_square.width / 2)
-        top_left_y = int(y - rotated_square.height / 2)
+        top_left_x = int(x_target - rotated_square.width / 2)
+        top_left_y = int(y_target - rotated_square.height / 2)
 
         # Paste the rotated square onto the canvas
         canvas.paste(rotated_square, (top_left_x, top_left_y), rotated_square)
