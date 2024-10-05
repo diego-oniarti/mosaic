@@ -105,7 +105,7 @@ if __name__ == '__main__':
 
     start = time.time()
     points = get_points(filename, threshold, line_size, n_points, args.show, timeout, no_timeout)
-    create_image_with_squares(filename, points, args.output+".png", (50, 50, 50))
+    create_image_with_squares(filename, points, args.output+".png", (0, 0, 0))
     end = time.time()
 
     print(f"finished in {end-start}")

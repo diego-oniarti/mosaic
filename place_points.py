@@ -96,8 +96,8 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
     distance_transform = cv2.distanceTransform(edges[:, :, 3], cv2.DIST_L2, 0)
 
     # Compute gradients of the distance transform
-    grad_x = cv2.Sobel(distance_transform, cv2.CV_64F, 1, 0, ksize=25)
-    grad_y = cv2.Sobel(distance_transform, cv2.CV_64F, 0, 1, ksize=25)
+    grad_x = cv2.Sobel(distance_transform, cv2.CV_64F, 1, 0, ksize=31)
+    grad_y = cv2.Sobel(distance_transform, cv2.CV_64F, 0, 1, ksize=31)
 
     # Normalize the gradient vectors to unit vectors (flow direction)
     magnitude = np.sqrt(grad_x**2 + grad_y**2)
@@ -176,9 +176,7 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
             area = aree[point.color]
             if area[2] == 0:
                 continue
-            # Non so perché ma è CRITICO che qui ci sia `ceil` al posto di `round` o `int`
-            # new_x = math.ceil(area[0] / area[2])
-            # new_y = math.ceil(area[1] / area[2])
+            # il +0.5 fa funzionare tutto. Non sono sicuro del motivo
             new_x = area[0] / area[2] + 0.5
             new_y = area[1] / area[2] + 0.5
             if finished and math.sqrt(math.pow(new_x - point.x, 2) + math.pow(new_y - point.y, 2)) > 0.5:
