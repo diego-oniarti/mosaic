@@ -104,36 +104,31 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
     flow_x = grad_x / (magnitude + 1e-8)  # Add a small epsilon to avoid division by zero
     flow_y = grad_y / (magnitude + 1e-8)
 
-    # Window dimensions
     image = Image.open(path)
     width, height = image.width, image.height
 
-    # Pass the `visible` flag to the window creation
     window = init_glfw_window(width, height, "Mosaic", visible)
 
     if not window:
         print("Failed to create GLFW window")
         return
 
-    # Generate random points for placing cones
     points = generate_random_points(n_points, width, height)
 
-    start_time = time.time()  # Start the timer
+    start_time = time.time()
 
     # Main loop to render the scene
     finished = False
-    while not glfw.window_should_close(window) and not finished:
-        # Check if the timeout has been reached
+    gap_closer = 5
+    while not (glfw.window_should_close(window) or (finished and gap_closer <= 0)):
         if not no_timeout:
             elapsed_time = time.time() - start_time
             if elapsed_time > timeout:
                 print("Time limit exceeded, stopping the loop.")
                 break
 
-        # Clear the screen and depth buffer
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
 
-        # Draw cones at the random points
         for point in points:
             grad_x = flow_x[int(point.y), int(point.x)]
             grad_y = flow_y[int(point.y), int(point.x)]
@@ -148,12 +143,6 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
         # Calculate centroids
         aree = dict()
         for point in points:
-            # aree[point.color] = [width / 2, height / 2, 1]
-            # aree[point.color] = [
-            #         (point.x+width)/2,
-            #         (point.y+height)/2,
-            #         1
-            # ]
             aree[point.color] = [0, 0, 0]
 
         pixel_data = np.zeros((height, width, 3), dtype=np.uint8)
@@ -162,7 +151,7 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
         for pix_y in range(height):
             for pix_x in range(width):
                 edges_mask = edges[pix_y, pix_x]
-                if edges_mask[3] != 0:
+                if edges_mask[3] != 0 and not finished:
                     continue
                 col = pixel_data[pix_y, pix_x]
                 colid = (int(col[0]) & 0b11111111) + (int(col[1]) << 8)
@@ -185,18 +174,17 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
             point.y = new_y
             point.size = area[2]
 
-        # Swap buffers to display the scene
-        glfw.swap_buffers(window)
+        if finished:
+            gap_closer -= 1
 
-        # Poll for events
+        glfw.swap_buffers(window)
         glfw.poll_events()
 
-    glfw.terminate()  # Clean up and close the window
+    glfw.terminate()
 
     return points
 
 
-# Run the program
 if __name__ == "__main__":
     filename = sys.argv[1]
     threshold = float(sys.argv[2])
