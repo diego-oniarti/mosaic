@@ -16,7 +16,7 @@ def get_average_color(image, bbox):
     """
     cropped_region = image.crop(bbox)
     cropped_pixels = np.array(cropped_region)
-    
+
     # Compute the average color, ignoring any potential alpha channel
     avg_color = np.mean(cropped_pixels[:, :, :3], axis=(0, 1)).astype(int)  # Average over RGB channels
     return tuple(avg_color)
@@ -66,7 +66,6 @@ def create_image_with_squares(image_path, points, output_image_path, canvas_colo
             square_size_target = 4
 
         # Define the bounding box of the square before rotation
-        # bbox = (max(0, x - half_size), max(0, y - half_size), min(original_image.width, x + half_size), min(original_image.height, y + half_size))
         bbox = (max(0, x - half_size), max(0, y - half_size), min(original_image.width, x + half_size), min(original_image.height, y + half_size))
 
         # Get the average color of the area under the square
@@ -76,9 +75,11 @@ def create_image_with_squares(image_path, points, output_image_path, canvas_colo
         square = Image.new('RGBA', (square_size_target, square_size_target), (255, 0, 0, 0))
         draw = ImageDraw.Draw(square)
         try:
-            draw.rectangle([(0, 0), (square_size_target, square_size_target)], fill=color)
-        except ():
-            draw.rectangle([(0, 0), (square_size_target, square_size_target)], fill=(0, 0, 0))
+            draw.rectangle([(0, 0), (square_size_target, square_size_target)],
+                           fill=color)
+        except OverflowError:
+            draw.rectangle([(0, 0), (square_size_target, square_size_target)],
+                           fill=(0, 0, 0))
 
         # Rotate the square by the given angle
         rotated_square = square.rotate(angle, expand=True)
