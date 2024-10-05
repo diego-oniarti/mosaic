@@ -87,8 +87,11 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
         print("Couldn't get the flowfield")
         return
 
+    # I contorni vengono salvati solo per scopo di debug. Non c'è alcun motivo pratico
     edges_image = Image.fromarray(edges)
     edges_image.save("edges.png", format="png")
+
+    edges = np.flip(edges, 0)
 
     distance_transform = cv2.distanceTransform(edges[:, :, 3], cv2.DIST_L2, 0)
 
