@@ -52,7 +52,7 @@ if __name__ == "__main__":
     edge_thickness = int(sys.argv[3])  # Replace with your edge thickness value
 
     # Get the final image with edges and transparent background
-    final_image = get_edges_cv2(image_path, threshold, edge_thickness)
+    final_image = get_edges(image_path, threshold, edge_thickness)
 
     if final_image is not None:
         # Convert to PIL Image to show or save

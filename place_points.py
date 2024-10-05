@@ -181,7 +181,7 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
             # new_y = math.ceil(area[1] / area[2])
             new_x = area[0] / area[2] + 0.5
             new_y = area[1] / area[2] + 0.5
-            if finished and math.sqrt(math.pow(new_x - point.x, 2) + math.pow(new_y - point.y, 2)) > 0:
+            if finished and math.sqrt(math.pow(new_x - point.x, 2) + math.pow(new_y - point.y, 2)) > 0.5:
                 finished = False
             point.x = new_x
             point.y = new_y
