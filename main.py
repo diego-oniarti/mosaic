@@ -1,3 +1,4 @@
+import warnings
 import pathlib
 import argparse
 import time
@@ -5,6 +6,7 @@ from PIL import Image, ImageDraw
 import math
 import numpy as np
 from place_points import get_points
+
 
 def get_average_color(image, bbox):
     """
@@ -18,7 +20,12 @@ def get_average_color(image, bbox):
     cropped_pixels = np.array(cropped_region)
 
     # Compute the average color, ignoring any potential alpha channel
-    avg_color = np.mean(cropped_pixels[:, :, :3], axis=(0, 1)).astype(int)  # Average over RGB channels
+    warnings.filterwarnings("error")
+    try:
+        avg_color = np.mean(cropped_pixels[:, :, :3], axis=(0, 1)).astype(int)  # Average over RGB channels
+    except RuntimeWarning:
+        avg_color = image.getpixel((bbox[0], bbox[1]))
+    warnings.resetwarnings()
     return tuple(avg_color)
 
 def create_image_with_squares(image_path, points, output_image_path, canvas_color=(255, 255, 255)):
@@ -39,6 +46,7 @@ def create_image_with_squares(image_path, points, output_image_path, canvas_colo
     original_size = (original_image.width, original_image.height)
     target_size = original_size
     # target_size = (2560, 1440)
+    # target_size = (1000, 1000)
 
     # Create a blank canvas
     canvas = Image.new('RGBA', target_size, canvas_color)

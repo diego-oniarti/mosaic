@@ -119,13 +119,13 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
 
     # Main loop to render the scene
     finished = False
-    gap_closer = 5
+    gap_closer = 1
     while not (glfw.window_should_close(window) or (finished and gap_closer <= 0)):
-        if not no_timeout:
+        if not no_timeout and not finished:
             elapsed_time = time.time() - start_time
             if elapsed_time > timeout:
                 print("Time limit exceeded, stopping the loop.")
-                break
+                finished = True
 
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
 
@@ -160,7 +160,7 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
                 aree[colid][1] += pix_y
                 aree[colid][2] += 1
 
-        finished = True
+        is_still = True
         for point in points:
             area = aree[point.color]
             if area[2] == 0:
@@ -168,14 +168,18 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
             # il +0.5 fa funzionare tutto. Non sono sicuro del motivo
             new_x = area[0] / area[2] + 0.5
             new_y = area[1] / area[2] + 0.5
-            if finished and math.sqrt(math.pow(new_x - point.x, 2) + math.pow(new_y - point.y, 2)) > 0.5:
-                finished = False
+            if is_still and math.sqrt(math.pow(new_x - point.x, 2) + math.pow(new_y - point.y, 2)) > 0.5:
+                is_still = False
             point.x = new_x
             point.y = new_y
             point.size = area[2]
 
         if finished:
             gap_closer -= 1
+
+        if not finished and is_still:
+            finished = True
+            print("Finished.")
 
         glfw.swap_buffers(window)
         glfw.poll_events()
