@@ -108,7 +108,7 @@ if __name__ == '__main__':
     parser.add_argument('-N', '--no_timeout', action='store_true', help="Ignore the timeout. Can make the program run foorever if the voronoi doesn't converge on the image")
     parser.add_argument('-o', '--output', type=str, default="out/final", help="Path to the output image. Do not specify extension")
 
-    pathlib.Path("/out").mkdir(exist_ok=True)
+    pathlib.Path("out").mkdir(exist_ok=True)
 
     # Parse arguments
     args = parser.parse_args()
