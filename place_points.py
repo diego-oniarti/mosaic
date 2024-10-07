@@ -57,7 +57,7 @@ def generate_random_points(num_points: int, width: int, height: int) -> list[Poi
     return points
 
 
-def draw_cone_at_point(x: int, y: int, color: int, angle: int, base_radius=200, height=7.0, num_slices=4):
+def draw_cone_at_point(x: float, y: float, color: int, angle: int, base_radius=200, height=7.0, num_slices=4):
     '''Disegna un cono nella posizione e rotazione indicata'''
     angle -= 45
     gl.glPushMatrix()
@@ -93,11 +93,16 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
 
     edges = np.flip(edges, 0)
 
-    distance_transform = cv2.distanceTransform(edges[:, :, 3], cv2.DIST_L2, 0)
+    binary_edges = 255 - (edges[:, :, 3] > 0).astype(np.uint8) * 255
+    distance_transform = cv2.distanceTransform(binary_edges, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+    distance_transform = distance_transform / np.max(distance_transform)
+
+    dist_image = Image.fromarray(np.flip((distance_transform*255).astype(np.uint8), 0))
+    dist_image.save("dist.png", format="png")
 
     # Compute gradients of the distance transform
-    grad_x = cv2.Sobel(distance_transform, cv2.CV_64F, 1, 0, ksize=31)
-    grad_y = cv2.Sobel(distance_transform, cv2.CV_64F, 0, 1, ksize=31)
+    grad_x = cv2.Sobel(distance_transform, cv2.CV_64F, 1, 0, ksize=3)
+    grad_y = cv2.Sobel(distance_transform, cv2.CV_64F, 0, 1, ksize=3)
 
     # Normalize the gradient vectors to unit vectors (flow direction)
     magnitude = np.sqrt(grad_x**2 + grad_y**2)
@@ -168,7 +173,7 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
             # il +0.5 fa funzionare tutto. Non sono sicuro del motivo
             new_x = area[0] / area[2] + 0.5
             new_y = area[1] / area[2] + 0.5
-            if is_still and math.sqrt(math.pow(new_x - point.x, 2) + math.pow(new_y - point.y, 2)) > 0.5:
+            if is_still and math.sqrt(math.pow(new_x - point.x, 2) + math.pow(new_y - point.y, 2)) > 0.01:
                 is_still = False
             point.x = new_x
             point.y = new_y

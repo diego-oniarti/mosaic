@@ -45,6 +45,7 @@ def create_image_with_squares(image_path, points, output_image_path, canvas_colo
 
     original_size = (original_image.width, original_image.height)
     target_size = original_size
+    # target_size = (1366, 768)
     # target_size = (2560, 1440)
     # target_size = (1000, 1000)
 
