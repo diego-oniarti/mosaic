@@ -57,7 +57,8 @@ def generate_random_points(num_points: int, width: int, height: int) -> list[Poi
     return points
 
 
-def draw_cone_at_point(x: float, y: float, color: int, angle: int, base_radius=200, height=7.0, num_slices=4):
+def draw_cone_at_point(x: float, y: float, color: int, angle: int,
+                       base_radius=200, height=7.0, num_slices=4):
     '''Disegna un cono nella posizione e rotazione indicata'''
     angle -= 45
     gl.glPushMatrix()
@@ -95,6 +96,7 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
 
     binary_edges = 255 - (edges[:, :, 3] > 0).astype(np.uint8) * 255
     distance_transform = cv2.distanceTransform(binary_edges, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+    # distance_transform = np.clip(distance_transform, 0, 50)
     distance_transform = distance_transform / np.max(distance_transform)
 
     dist_image = Image.fromarray(np.flip((distance_transform*255).astype(np.uint8), 0))
@@ -125,6 +127,7 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
     # Main loop to render the scene
     finished = False
     gap_closer = 1
+    min_dist = 99999
     while not (glfw.window_should_close(window) or (finished and gap_closer <= 0)):
         if not no_timeout and not finished:
             elapsed_time = time.time() - start_time
@@ -143,7 +146,7 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
                 angle = 180 - angle
 
             point.angle = int(angle)
-            draw_cone_at_point(point.x, point.y, point.color, int(angle), 100 * (width + height))
+            draw_cone_at_point(point.x, point.y, point.color, int(angle), 2 * (width + height))
 
         # Calculate centroids
         aree = dict()
@@ -166,6 +169,7 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
                 aree[colid][2] += 1
 
         is_still = True
+        max_dist = 0
         for point in points:
             area = aree[point.color]
             if area[2] == 0:
@@ -173,11 +177,20 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
             # il +0.5 fa funzionare tutto. Non sono sicuro del motivo
             new_x = area[0] / area[2] + 0.5
             new_y = area[1] / area[2] + 0.5
-            if is_still and math.sqrt(math.pow(new_x - point.x, 2) + math.pow(new_y - point.y, 2)) > 0.01:
+            dist = math.sqrt(math.pow(new_x - point.x, 2) + math.pow(new_y - point.y, 2))
+
+            if dist > max_dist:
+                max_dist = dist
+
+            if min_dist > 0.5 or is_still and dist > min_dist:
                 is_still = False
+
             point.x = new_x
             point.y = new_y
             point.size = area[2]
+
+        if max_dist < min_dist:
+            min_dist = max_dist
 
         if finished:
             gap_closer -= 1

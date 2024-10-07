@@ -52,6 +52,7 @@ def create_image_with_squares(image_path, points, output_image_path, canvas_colo
     # Create a blank canvas
     canvas = Image.new('RGBA', target_size, canvas_color)
 
+    avg_square_size = math.sqrt(original_image.width*original_image.height/len(points))*0.85
     for point in points:
         x = point.x
         y = original_size[1]-point.y
@@ -62,6 +63,7 @@ def create_image_with_squares(image_path, points, output_image_path, canvas_colo
 
         angle = point.angle
         square_size = math.sqrt(point.size)*0.85
+        # square_size = (avg_square_size+square_size)/2
         half_size = square_size // 2
 
         # conversion to target size
