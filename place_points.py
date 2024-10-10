@@ -133,6 +133,17 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
     finished = False
     gap_closer = 1
     min_dist = 99999
+
+    max_mag = np.max(magnitude)
+    mag_norm = 1-np.clip(magnitude/max_mag, 0.0, 0.99)
+
+    blurred = cv2.blur(np.array(mag_norm*255).astype(np.uint8), (5, 5))
+    # blurred = np.pow(blurred/255, 1/2)*255
+    # blurred = cv2.dilate(mag_norm, np.ones((5, 5), np.uint8))
+    blurred = np.clip(blurred, 0, 50)
+    Image.fromarray(np.flip(blurred, 0)
+                    .astype(np.uint8)).save("mag.png", format="png")
+
     while not (glfw.window_should_close(window)
                or (finished and gap_closer <= 0)):
         if not no_timeout and not finished:
@@ -144,16 +155,20 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
 
         for point in points:
-            grad_x = flow_x[int(point.y), int(point.x)]
-            grad_y = flow_y[int(point.y), int(point.x)]
+            x = int(point.x)
+            y = int(point.y)
+
+            grad_x = flow_x[y, x]
+            grad_y = flow_y[y, x]
 
             angle = math.asin(grad_y) / math.pi * 180
             if grad_x < 0:
                 angle = 180 - angle
 
             point.angle = int(angle)
+            D = blurred[y, x]/255
             draw_cone_at_point(point.x, point.y, point.color, int(angle),
-                               2 * (width + height), slope=0.5)
+                               2 * (width + height), slope=D)
 
         # Calculate centroids
         aree = dict()
