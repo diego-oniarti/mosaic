@@ -134,14 +134,11 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
     gap_closer = 1
     min_dist = 99999
 
-    max_mag = np.max(magnitude)
-    mag_norm = 1-np.clip(magnitude/max_mag, 0.0, 0.99)
+    thr = 0.1
+    idk = 1
+    size_bias = (thr - np.clip(distance_transform, 0, thr)) / idk
 
-    blurred = cv2.blur(np.array(mag_norm*255).astype(np.uint8), (5, 5))
-    # blurred = np.pow(blurred/255, 1/2)*255
-    # blurred = cv2.dilate(mag_norm, np.ones((5, 5), np.uint8))
-    blurred = np.clip(blurred, 0, 50)
-    Image.fromarray(np.flip(blurred, 0)
+    Image.fromarray(np.flip(size_bias*255, 0)
                     .astype(np.uint8)).save("mag.png", format="png")
 
     while not (glfw.window_should_close(window)
@@ -166,7 +163,7 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
                 angle = 180 - angle
 
             point.angle = int(angle)
-            D = blurred[y, x]/255
+            D = size_bias[y, x]
             draw_cone_at_point(point.x, point.y, point.color, int(angle),
                                2 * (width + height), slope=D)
 
