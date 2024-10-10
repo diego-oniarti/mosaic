@@ -47,7 +47,8 @@ class Point:
         self.size = 0
 
 
-def generate_random_points(num_points: int, width: int, height: int) -> list[Point]:
+def generate_random_points(num_points: int, width: int,
+                           height: int) -> list[Point]:
     '''Generate random Points from -plane_size a +plane_size'''
     points = []
     for i in range(num_points):
@@ -58,18 +59,20 @@ def generate_random_points(num_points: int, width: int, height: int) -> list[Poi
 
 
 def draw_cone_at_point(x: float, y: float, color: int, angle: int,
-                       base_radius=200, height=7.0, num_slices=4):
+                       base_radius=200, height=7.0, num_slices=4,
+                       slope=0.0):
     '''Disegna un cono nella posizione e rotazione indicata'''
     angle -= 45
     gl.glPushMatrix()
-    gl.glTranslatef(x, y, 0)  # Translate cone to (x, y) on the plane
+    gl.glTranslatef(x, y, -slope*100)  # Translate cone to (x, y) on the plane
 
     gl.glColor3ub(color & 0b11111111, color >> 8, 0)
 
     # Draw the cone using gluCylinder
     cone_quadric = glu.gluNewQuadric()
     gl.glRotatef(angle, 0, 0, 1)
-    glu.gluCylinder(cone_quadric, base_radius, 0.0, height, num_slices, 1)
+    glu.gluCylinder(cone_quadric, base_radius, 0.0,
+                    height+slope * 100, num_slices, 1)
 
     gl.glPopMatrix()
 
@@ -88,18 +91,19 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
         print("Couldn't get the flowfield")
         return
 
-    # I contorni vengono salvati solo per scopo di debug. Non c'è alcun motivo pratico
     edges_image = Image.fromarray(edges)
     edges_image.save("edges.png", format="png")
 
     edges = np.flip(edges, 0)
 
     binary_edges = 255 - (edges[:, :, 3] > 0).astype(np.uint8) * 255
-    distance_transform = cv2.distanceTransform(binary_edges, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+    distance_transform = cv2.distanceTransform(binary_edges, cv2.DIST_L2,
+                                               cv2.DIST_MASK_PRECISE)
     # distance_transform = np.clip(distance_transform, 0, 50)
     distance_transform = distance_transform / np.max(distance_transform)
 
-    dist_image = Image.fromarray(np.flip((distance_transform*255).astype(np.uint8), 0))
+    dist_image = Image.fromarray(np.flip((distance_transform*255)
+                                         .astype(np.uint8), 0))
     dist_image.save("dist.png", format="png")
 
     # Compute gradients of the distance transform
@@ -108,7 +112,8 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
 
     # Normalize the gradient vectors to unit vectors (flow direction)
     magnitude = np.sqrt(grad_x**2 + grad_y**2)
-    flow_x = grad_x / (magnitude + 1e-8)  # Add a small epsilon to avoid division by zero
+    # Add a small epsilon to avoid division by zero
+    flow_x = grad_x / (magnitude + 1e-8)
     flow_y = grad_y / (magnitude + 1e-8)
 
     image = Image.open(path)
@@ -128,7 +133,8 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
     finished = False
     gap_closer = 1
     min_dist = 99999
-    while not (glfw.window_should_close(window) or (finished and gap_closer <= 0)):
+    while not (glfw.window_should_close(window)
+               or (finished and gap_closer <= 0)):
         if not no_timeout and not finished:
             elapsed_time = time.time() - start_time
             if elapsed_time > timeout:
@@ -146,7 +152,8 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
                 angle = 180 - angle
 
             point.angle = int(angle)
-            draw_cone_at_point(point.x, point.y, point.color, int(angle), 2 * (width + height))
+            draw_cone_at_point(point.x, point.y, point.color, int(angle),
+                               2 * (width + height), slope=0.5)
 
         # Calculate centroids
         aree = dict()
@@ -154,7 +161,8 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
             aree[point.color] = [0, 0, 0]
 
         pixel_data = np.zeros((height, width, 3), dtype=np.uint8)
-        gl.glReadPixels(0, 0, width, height, gl.GL_RGB, gl.GL_UNSIGNED_BYTE, pixel_data)
+        gl.glReadPixels(0, 0, width, height,
+                        gl.GL_RGB, gl.GL_UNSIGNED_BYTE, pixel_data)
 
         for pix_y in range(height):
             for pix_x in range(width):
@@ -177,7 +185,8 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
             # il +0.5 fa funzionare tutto. Non sono sicuro del motivo
             new_x = area[0] / area[2] + 0.5
             new_y = area[1] / area[2] + 0.5
-            dist = math.sqrt(math.pow(new_x - point.x, 2) + math.pow(new_y - point.y, 2))
+            dist = math.sqrt(math.pow(new_x - point.x, 2)
+                             + math.pow(new_y - point.y, 2))
 
             if dist > max_dist:
                 max_dist = dist
