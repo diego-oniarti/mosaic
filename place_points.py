@@ -35,6 +35,8 @@ def init_glfw_window(width, height, title, visible):
 
     gl.glEnable(gl.GL_DEPTH_TEST)  # Enable depth test for 3D rendering
 
+    gl.glPixelStorei(gl.GL_PACK_ALIGNMENT, 1)
+
     return window
 
 
@@ -134,9 +136,9 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
     gap_closer = 1
     min_dist = 99999
 
-    thr = 0.1
+    thr = 0.15
     idk = 1
-    size_bias = (thr - np.clip(distance_transform, 0, thr)) / idk
+    size_bias = (thr - np.clip(distance_transform, 0, thr)) * idk
 
     Image.fromarray(np.flip(size_bias*255, 0)
                     .astype(np.uint8)).save("mag.png", format="png")
