@@ -35,6 +35,8 @@ def init_glfw_window(width, height, title, visible):
 
     gl.glEnable(gl.GL_DEPTH_TEST)  # Enable depth test for 3D rendering
 
+    gl.glPixelStorei(gl.GL_PACK_ALIGNMENT, 1)
+
     return window
 
 
