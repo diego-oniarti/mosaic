@@ -60,7 +60,28 @@ def generate_random_points(num_points: int, width: int,
     return points
 
 
-def draw_cone_at_point(x: float, y: float, color: int, angle: int,
+def generate_seeds(num_points: int, width: int, height: int,
+                   probability_bias) -> list[Point]:
+    points = []
+    for i in range(num_points):
+        x = random.uniform(0, width)
+        y = random.uniform(0, height)
+        points.append(Point(x, y, i))
+
+    points = []
+    while True:
+        for y in range(height):
+            for x in range(width):
+                local_bias = probability_bias[y, x]
+                if local_bias == 0:
+                    continue
+                if random.uniform(1, 100) < local_bias*1.5:
+                    points.append(Point(x, y, len(points)))
+                if len(points) == num_points:
+                    return points
+
+
+def draw_cone_at_point(x: float, y: float, color: int, angle=0.0,
                        base_radius=200, height=7.0, num_slices=20,
                        slope=0.0):
     '''Disegna un cono nella posizione e rotazione indicata'''
@@ -127,7 +148,11 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
         print("Failed to create GLFW window")
         return
 
-    points = generate_random_points(n_points, width, height)
+    thr = 0.25
+    size_bias = (thr - np.clip(distance_transform, 0, thr))/thr
+    size_bias = pow(size_bias, 2)
+
+    points = generate_seeds(n_points, width, height, size_bias)
 
     start_time = time.time()
 
@@ -135,10 +160,6 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
     finished = False
     gap_closer = 1
     min_dist = 99999
-
-    thr = 0.1
-    idk = 1.5
-    size_bias = (thr - np.clip(distance_transform, 0, thr)) * idk
 
     Image.fromarray(np.flip(size_bias*255, 0)
                     .astype(np.uint8)).save("mag.png", format="png")
@@ -157,17 +178,8 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
             x = int(point.x)
             y = int(point.y)
 
-            grad_x = flow_x[y, x]
-            grad_y = flow_y[y, x]
-
-            angle = math.asin(grad_y) / math.pi * 180
-            if grad_x < 0:
-                angle = 180 - angle
-
-            point.angle = int(angle)
-            D = size_bias[y, x]
-            draw_cone_at_point(point.x, point.y, point.color, int(angle),
-                               2 * (width + height), slope=D)
+            draw_cone_at_point(point.x, point.y, point.color,
+                               base_radius=2 * (width + height))
 
         # Calculate centroids
         aree = dict()
@@ -180,15 +192,16 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
 
         for pix_y in range(height):
             for pix_x in range(width):
-                edges_mask = edges[pix_y, pix_x]
-                if edges_mask[3] != 0 and not finished:
-                    continue
+                # edges_mask = edges[pix_y, pix_x]
+                # if edges_mask[3] != 0 and not finished:
+                #     continue
+                D = size_bias[pix_y, pix_x]
                 col = pixel_data[pix_y, pix_x]
                 colid = (int(col[0]) & 0b11111111) + (int(col[1]) << 8)
 
-                aree[colid][0] += pix_x
-                aree[colid][1] += pix_y
-                aree[colid][2] += 1
+                aree[colid][0] += pix_x * D
+                aree[colid][1] += pix_y * D
+                aree[colid][2] += D
 
         is_still = True
         max_dist = 0
