@@ -61,14 +61,14 @@ def generate_random_points(num_points: int, width: int,
 
 
 def draw_cone_at_point(x: float, y: float, color: int, angle: int,
-                       base_radius=200, height=7.0, num_slices=4,
+                       base_radius=200, height=7.0, num_slices=20,
                        slope=0.0):
     '''Disegna un cono nella posizione e rotazione indicata'''
     angle -= 45
     gl.glPushMatrix()
     gl.glTranslatef(x, y, -slope*100)  # Translate cone to (x, y) on the plane
 
-    gl.glColor3ub(color & 0b11111111, color >> 8, 0)
+    gl.glColor3ub(color & 0b11111111, (color >> 8) & 0b11111111, color >> 16)
 
     # Draw the cone using gluCylinder
     cone_quadric = glu.gluNewQuadric()
@@ -87,7 +87,7 @@ def draw_point(x, y, size=4):
 
 
 # Main rendering loop
-def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout=False):
+def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no_timeout=False):
     edges = get_edges(path, thr, thick)
     if edges is None:
         print("Couldn't get the flowfield")
@@ -136,8 +136,8 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
     gap_closer = 1
     min_dist = 99999
 
-    thr = 0.15
-    idk = 1
+    thr = 0.1
+    idk = 1.5
     size_bias = (thr - np.clip(distance_transform, 0, thr)) * idk
 
     Image.fromarray(np.flip(size_bias*255, 0)
@@ -225,9 +225,57 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
         glfw.swap_buffers(window)
         glfw.poll_events()
 
+    # calcola la media dei colori per regione
+    aree_colori = dict()
+    for point in points:
+        aree_colori[point.color] = [0, 0, 0, 0]  # R G B count
+
+    pixel_data = np.zeros((height, width, 3), dtype=np.uint8)
+    gl.glReadPixels(0, 0, width, height,
+                    gl.GL_RGB, gl.GL_UNSIGNED_BYTE, pixel_data)
+
+    for pix_y in range(height):
+        for pix_x in range(width):
+            col = pixel_data[pix_y, pix_x]
+            colid = (int(col[0]) & 0b11111111) + (int(col[1]) << 8)
+
+            image_color = image.getpixel((pix_x, pix_y))
+            aree_colori[colid][0] += image_color[0]
+            aree_colori[colid][1] += image_color[1]
+            aree_colori[colid][2] += image_color[2]
+            aree_colori[colid][3] += 1
+
+    gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
+    for point in points:
+        area_colore = aree_colori[point.color]
+        r = int(area_colore[0]/area_colore[3])
+        g = int(area_colore[1]/area_colore[3])
+        b = int(area_colore[2]/area_colore[3])
+        x = int(point.x)
+        y = int(point.y)
+
+        grad_x = flow_x[y, x]
+        grad_y = flow_y[y, x]
+
+        angle = math.asin(grad_y) / math.pi * 180
+        if grad_x < 0:
+            angle = 180 - angle
+
+        point.angle = int(angle)
+        D = size_bias[y, x]
+        draw_cone_at_point(point.x, point.y, ((b << 16) + (g << 8) + r),
+                           int(angle), 2 * (width + height), slope=D,
+                           num_slices=20)
+
+    final_image_pixels = np.zeros((height, width, 3), dtype=np.uint8)
+    gl.glReadPixels(0, 0, width, height,
+                    gl.GL_RGB, gl.GL_UNSIGNED_BYTE, final_image_pixels)
+
+    final_image = Image.fromarray(final_image_pixels)
+
     glfw.terminate()
 
-    return points
+    return final_image
 
 
 if __name__ == "__main__":
@@ -235,5 +283,5 @@ if __name__ == "__main__":
     threshold = float(sys.argv[2])
     line_size = int(sys.argv[3])
     n_points = int(sys.argv[4])
-    points = get_points(filename, threshold, line_size, n_points, True)
+    points = get_fracture_image(filename, threshold, line_size, n_points, True)
     print(points)
