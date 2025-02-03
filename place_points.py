@@ -9,6 +9,7 @@ from edges import get_edges
 from PIL import Image
 import cv2
 import time
+from tqdm import tqdm
 
 # Initialize GLFW and create a window
 def init_glfw_window(width, height, title, visible):
@@ -62,23 +63,19 @@ def generate_random_points(num_points: int, width: int,
 
 def generate_seeds(num_points: int, width: int, height: int,
                    probability_bias) -> list[Point]:
-    points = []
-    for i in range(num_points):
-        x = random.uniform(0, width)
-        y = random.uniform(0, height)
-        points.append(Point(x, y, i))
-
-    points = []
-    while True:
-        for y in range(height):
-            for x in range(width):
-                local_bias = probability_bias[y, x]
-                if local_bias == 0:
-                    continue
-                if random.uniform(1, 100) < local_bias*1.5:
-                    points.append(Point(x, y, len(points)))
-                if len(points) == num_points:
-                    return points
+    with tqdm(total=num_points, desc="Placing seeds", leave=False) as pbar:
+        points = []
+        while True:
+            for y in range(height):
+                for x in range(width):
+                    local_bias = probability_bias[y, x]
+                    if local_bias == 0:
+                        continue
+                    if random.uniform(1, 100) < local_bias*1.1:
+                        points.append(Point(x, y, len(points)))
+                        pbar.update()
+                    if len(points) == num_points:
+                        return points
 
 
 def draw_cone_at_point(x: float, y: float, color: int, angle=0.0,
@@ -108,6 +105,7 @@ def draw_point(x, y, size=4):
 
 
 # Main rendering loop
+# Ritorna la matrice del voronoi colorato e quello di ID
 def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no_timeout=False):
     edges = get_edges(path, thr, thick)
     if edges is None:
@@ -148,9 +146,9 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
         print("Failed to create GLFW window")
         return
 
-    thr = 0.25
+    thr = 1
     size_bias = (thr - np.clip(distance_transform, 0, thr))/thr
-    size_bias = pow(size_bias, 2)
+    size_bias = pow(size_bias, 100)
 
     points = generate_seeds(n_points, width, height, size_bias)
 
@@ -160,6 +158,7 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
     finished = False
     gap_closer = 1
     min_dist = 99999
+    original_min_dist = -1
 
     Image.fromarray(np.flip(size_bias*255, 0)
                     .astype(np.uint8)).save("mag.png", format="png")
@@ -192,10 +191,10 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
 
         for pix_y in range(height):
             for pix_x in range(width):
-                # edges_mask = edges[pix_y, pix_x]
-                # if edges_mask[3] != 0 and not finished:
-                #     continue
-                D = size_bias[pix_y, pix_x]
+                edges_mask = edges[pix_y, pix_x]
+                if edges_mask[3] != 0 and not finished:
+                    continue
+                D = size_bias[pix_y, pix_x] + thr/100
                 col = pixel_data[pix_y, pix_x]
                 colid = (int(col[0]) & 0b11111111) + (int(col[1]) << 8)
 
@@ -218,15 +217,19 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
             if dist > max_dist:
                 max_dist = dist
 
-            if min_dist > 0.5 or is_still and dist > min_dist:
-                is_still = False
-
             point.x = new_x
             point.y = new_y
             point.size = area[2]
 
+        if min_dist > 0.5 or is_still and dist > min_dist:
+            is_still = False
+
         if max_dist < min_dist:
             min_dist = max_dist
+            if original_min_dist == -1:
+                original_min_dist = min_dist
+
+        print(f"{(pow((original_min_dist - min_dist)/(original_min_dist-0.5),10)*100):.2f}%", end="\r")
 
         if finished:
             gap_closer -= 1
@@ -238,6 +241,8 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
         glfw.swap_buffers(window)
         glfw.poll_events()
 
+    glfw.swap_buffers(window)
+
     # calcola la media dei colori per regione
     aree_colori = dict()
     for point in points:
@@ -246,6 +251,7 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
     pixel_data = np.zeros((height, width, 3), dtype=np.uint8)
     gl.glReadPixels(0, 0, width, height,
                     gl.GL_RGB, gl.GL_UNSIGNED_BYTE, pixel_data)
+    pixel_data = np.flip(pixel_data, 0)
 
     for pix_y in range(height):
         for pix_x in range(width):
@@ -270,25 +276,17 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
         grad_x = flow_x[y, x]
         grad_y = flow_y[y, x]
 
-        angle = math.asin(grad_y) / math.pi * 180
-        if grad_x < 0:
-            angle = 180 - angle
-
-        point.angle = int(angle)
-        D = size_bias[y, x]
         draw_cone_at_point(point.x, point.y, ((b << 16) + (g << 8) + r),
-                           int(angle), 2 * (width + height), slope=D,
-                           num_slices=20)
+                           base_radius=2 * (width + height))
 
     final_image_pixels = np.zeros((height, width, 3), dtype=np.uint8)
     gl.glReadPixels(0, 0, width, height,
                     gl.GL_RGB, gl.GL_UNSIGNED_BYTE, final_image_pixels)
-
-    final_image = Image.fromarray(final_image_pixels)
+    final_image_pixels = np.flip(final_image_pixels, 0)
 
     glfw.terminate()
 
-    return final_image
+    return (final_image_pixels, pixel_data)
 
 
 if __name__ == "__main__":

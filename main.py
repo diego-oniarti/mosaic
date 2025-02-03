@@ -1,7 +1,9 @@
 import pathlib
 import argparse
 import time
+from PIL import Image
 from place_points import get_fracture_image
+from tqdm import tqdm
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Turn an image into a mosaic")
@@ -28,11 +30,43 @@ if __name__ == '__main__':
     no_timeout = args.no_timeout
 
     start = time.time()
-    fracture_image = get_fracture_image(filename, threshold, line_size,
-                                        n_points, args.show, timeout,
-                                        no_timeout)
-    fracture_image.save(args.output+".png")
-    fracture_image.show()
+    colors, ids = get_fracture_image(filename, threshold, line_size, n_points,
+                                     args.show, timeout, no_timeout)
+
+    height = colors.shape[0]
+    width = colors.shape[1]
+
+    with tqdm(total=width*height, desc="Drawing borders", leave=False) as pbar:
+        for y in range(height):
+            for x in range(width):
+                center_id = ids[y, x]
+                different = 0
+                for i in range(-1, 2):
+                    if different > 2:
+                        break
+                    for j in range(-1, 2):
+                        xoff = x+i
+                        yoff = y+j
+                        if not (xoff >= 0 and yoff >= 0 and xoff < width and yoff < height):
+                            continue
+                        if (ids[yoff, xoff] != center_id).any():
+                            different += 1
+                        if different > 2:
+                            break
+
+                if different > 0:
+                    darken = [1, 0.8, 0.6, 0.5][different]
+                    r = colors[y, x][0]
+                    g = colors[y, x][1]
+                    b = colors[y, x][1]
+                    colors[y, x] = (r*darken, g*darken, b*darken)
+
+                pbar.update()
+
     end = time.time()
+
+    final_image = Image.fromarray(colors)
+    final_image.save(args.output+".png")
+    final_image.show()
 
     print(f"finished in {end-start}")
