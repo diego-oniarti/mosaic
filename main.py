@@ -55,10 +55,10 @@ if __name__ == '__main__':
                             break
 
                 if different > 0:
-                    darken = [1, 0.8, 0.6, 0.5][different]
+                    darken = [1, 0.9, 0.6, 0.5][different]
                     r = colors[y, x][0]
                     g = colors[y, x][1]
-                    b = colors[y, x][1]
+                    b = colors[y, x][2]
                     colors[y, x] = (r*darken, g*darken, b*darken)
 
                 pbar.update()

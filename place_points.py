@@ -229,7 +229,7 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
             if original_min_dist == -1:
                 original_min_dist = min_dist
 
-        print(f"{(pow((original_min_dist - min_dist)/(original_min_dist-0.5),10)*100):.2f}%", end="\r")
+        print(f"{(pow((original_min_dist - min_dist)/(original_min_dist-0.5),50)*100):.2f}%", end="\r")
 
         if finished:
             gap_closer -= 1
@@ -267,14 +267,14 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
     gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
     for point in points:
         area_colore = aree_colori[point.color]
-        r = int(area_colore[0]/area_colore[3])
-        g = int(area_colore[1]/area_colore[3])
-        b = int(area_colore[2]/area_colore[3])
-        x = int(point.x)
-        y = int(point.y)
-
-        grad_x = flow_x[y, x]
-        grad_y = flow_y[y, x]
+        if area_colore[3] != 0:
+            r = int(area_colore[0]/area_colore[3])
+            g = int(area_colore[1]/area_colore[3])
+            b = int(area_colore[2]/area_colore[3])
+        else:
+            r = 0
+            g = 0
+            b = 0
 
         draw_cone_at_point(point.x, point.y, ((b << 16) + (g << 8) + r),
                            base_radius=2 * (width + height))
