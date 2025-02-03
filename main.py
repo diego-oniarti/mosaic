@@ -6,6 +6,7 @@ from PIL import Image, ImageDraw
 import math
 import numpy as np
 from place_points import get_points
+from tqdm import tqdm
 
 
 def get_average_color(image, bbox):
@@ -53,7 +54,7 @@ def create_image_with_squares(image_path, points, output_image_path, canvas_colo
     canvas = Image.new('RGBA', target_size, canvas_color)
 
     avg_square_size = math.sqrt(original_image.width*original_image.height/len(points))*0.85
-    for point in points:
+    for point in tqdm(points):
         x = point.x
         y = original_size[1]-point.y
 

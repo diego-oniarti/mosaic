@@ -7,6 +7,7 @@ import OpenGL.GLU as glu
 import random
 from edges import get_edges
 from PIL import Image
+from tqdm import tqdm
 import cv2
 import time
 
@@ -53,11 +54,28 @@ def generate_random_points(num_points: int, width: int,
                            height: int) -> list[Point]:
     '''Generate random Points from -plane_size a +plane_size'''
     points = []
-    for i in range(num_points):
+    for i in tqdm(range(num_points)):
         x = random.uniform(0, width)
         y = random.uniform(0, height)
         points.append(Point(x, y, i))
     return points
+
+
+def generate_seeds(num_points: int, width: int, height: int,
+                   probability_bias) -> list[Point]:
+    with tqdm(total=num_points, desc="Placing seeds", leave=False) as pbar:
+        points = []
+        while True:
+            for y in range(height):
+                for x in range(width):
+                    local_bias = probability_bias[y, x]
+                    if local_bias == 0:
+                        continue
+                    if random.uniform(1, 100) < local_bias*1.1:
+                        points.append(Point(x, y, len(points)))
+                        pbar.update()
+                    if len(points) == num_points:
+                        return points
 
 
 def draw_cone_at_point(x: float, y: float, color: int, angle: int,
@@ -127,21 +145,23 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
         print("Failed to create GLFW window")
         return
 
-    points = generate_random_points(n_points, width, height)
-
     start_time = time.time()
 
     # Main loop to render the scene
     finished = False
     gap_closer = 1
-    min_dist = 99999
+    min_max_dist = 99999
 
-    thr = 0.15
-    idk = 1
-    size_bias = (thr - np.clip(distance_transform, 0, thr)) * idk
+    thr = 0.1
+    exp = 1
+    size_bias = pow((thr - np.clip(distance_transform, 0, thr)) / thr, exp)
 
-    Image.fromarray(np.flip(size_bias*255, 0)
-                    .astype(np.uint8)).save("mag.png", format="png")
+    mag_image_pixels = np.flip(size_bias*255, 0)
+    mag_image_pixels = np.array([[(x, x, x) if x != 0 else (255, 0, 0) for x in row] for row in mag_image_pixels]).astype(np.uint8)
+    Image.fromarray(mag_image_pixels).save("mag.png", format="png")
+
+    # points = generate_seeds(n_points, width, height, size_bias)
+    points = generate_random_points(n_points, width, height)
 
     while not (glfw.window_should_close(window)
                or (finished and gap_closer <= 0)):
@@ -165,7 +185,7 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
                 angle = 180 - angle
 
             point.angle = int(angle)
-            D = size_bias[y, x]
+            D = size_bias[y, x] / 10
             draw_cone_at_point(point.x, point.y, point.color, int(angle),
                                2 * (width + height), slope=D)
 
@@ -205,15 +225,17 @@ def get_points(path, thr, thick, n_points, visible=False, timeout=30, no_timeout
             if dist > max_dist:
                 max_dist = dist
 
-            if min_dist > 0.5 or is_still and dist > min_dist:
-                is_still = False
-
             point.x = new_x
             point.y = new_y
             point.size = area[2]
 
-        if max_dist < min_dist:
-            min_dist = max_dist
+        if max_dist < min_max_dist:
+            min_max_dist = max_dist
+
+        if min_max_dist > 0.5 or is_still and dist > min_max_dist:
+            is_still = False
+
+        print(f"Max centroid movement: {(min_max_dist):2f}/0.5   ", end="\r")
 
         if finished:
             gap_closer -= 1
