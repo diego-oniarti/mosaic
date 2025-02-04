@@ -11,6 +11,7 @@ import cv2
 import time
 from tqdm import tqdm
 
+
 # Initialize GLFW and create a window
 def init_glfw_window(width, height, title, visible):
     if not glfw.init():
@@ -127,16 +128,6 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
                                          .astype(np.uint8), 0))
     dist_image.save("dist.png", format="png")
 
-    # Compute gradients of the distance transform
-    grad_x = cv2.Sobel(distance_transform, cv2.CV_64F, 1, 0, ksize=3)
-    grad_y = cv2.Sobel(distance_transform, cv2.CV_64F, 0, 1, ksize=3)
-
-    # Normalize the gradient vectors to unit vectors (flow direction)
-    magnitude = np.sqrt(grad_x**2 + grad_y**2)
-    # Add a small epsilon to avoid division by zero
-    flow_x = grad_x / (magnitude + 1e-8)
-    flow_y = grad_y / (magnitude + 1e-8)
-
     image = Image.open(path)
     width, height = image.width, image.height
 
@@ -147,8 +138,13 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
         return
 
     thr = 1
+    exp = 20
     size_bias = (thr - np.clip(distance_transform, 0, thr))/thr
-    size_bias = pow(size_bias, 100)
+    size_bias = pow(size_bias, exp)
+
+    mag_image_pixels = np.flip(size_bias*255, 0)
+    mag_image_pixels = np.array([[(x, x, x) if x != 0 else (255, 0, 0) for x in row] for row in mag_image_pixels]).astype(np.uint8)
+    Image.fromarray(mag_image_pixels).save("mag.png", format="png")
 
     points = generate_seeds(n_points, width, height, size_bias)
 
@@ -159,9 +155,6 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
     gap_closer = 1
     min_dist = 99999
     original_min_dist = -1
-
-    Image.fromarray(np.flip(size_bias*255, 0)
-                    .astype(np.uint8)).save("mag.png", format="png")
 
     while not (glfw.window_should_close(window)
                or (finished and gap_closer <= 0)):
@@ -174,9 +167,6 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
 
         for point in points:
-            x = int(point.x)
-            y = int(point.y)
-
             draw_cone_at_point(point.x, point.y, point.color,
                                base_radius=2 * (width + height))
 
