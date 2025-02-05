@@ -171,6 +171,10 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
     min_dist = 99999
     original_min_dist = -1
 
+    frame_count = 0
+    tot_pixels = width*height
+
+    bar = tqdm(leave=False)
     while not (glfw.window_should_close(window)
                or (finished and gap_closer <= 0)):
         if not no_timeout and not finished:
@@ -194,6 +198,12 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
         gl.glReadPixels(0, 0, width, height,
                         gl.GL_RGB, gl.GL_UNSIGNED_BYTE, pixel_data)
 
+        if interpolate:
+            Image.fromarray(np.flip(pixel_data, 0)).save(f"frames/frame_{frame_count:04d}.png", format="png")
+            frame_count += 1
+
+        bar.set_description("Update centroids")
+        bar.reset(total=tot_pixels)
         for pix_y in range(height):
             for pix_x in range(width):
                 edges_mask = edges[pix_y, pix_x]
@@ -206,6 +216,8 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
                 aree[colid][0] += pix_x * D
                 aree[colid][1] += pix_y * D
                 aree[colid][2] += D
+
+                bar.update()
 
         is_still = True
         max_dist = 0
@@ -226,7 +238,9 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
             point.y = new_y
             point.size = area[2]
 
-        if min_dist > 0.5 or is_still and dist > min_dist:
+        min_dist_cutoff = 1
+
+        if min_dist > min_dist_cutoff or is_still and dist > min_dist:
             is_still = False
 
         if max_dist < min_dist:
@@ -234,7 +248,7 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
             if original_min_dist == -1:
                 original_min_dist = min_dist
 
-        print(f"{(pow((original_min_dist - min_dist)/(original_min_dist-0.5),50)*100):.2f}%", end="\r")
+        bar.write(f"{(pow((original_min_dist - min_dist)/(original_min_dist-min_dist_cutoff), 50)*100):.2f}%", end="\r")
 
         if finished:
             gap_closer -= 1
@@ -245,6 +259,8 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
 
         glfw.swap_buffers(window)
         glfw.poll_events()
+
+    bar.close()
 
     glfw.swap_buffers(window)
 
@@ -270,7 +286,8 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
             aree_colori[colid][3] += 1
 
     gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
-    with open("colors.txt", "w") as file:
+    colors_file_name = "colors_a.txt" if not interpolate else "colors_b.txt"
+    with open(colors_file_name, "w") as file:
         for point in tqdm(points, leave=False, desc="Drawing image"):
             area_colore = aree_colori[point.color]
             if area_colore[3] != 0:

@@ -1,10 +1,49 @@
+import os
 import pathlib
 import argparse
 import time
-from PIL import Image
 from place_points import get_fracture_image
 from tqdm import tqdm
-import polys
+import numpy as np
+import cv2
+from PIL import Image
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+def load_colors(filename):
+    colors = dict()
+    with open(filename, 'r') as file:
+        for line in file:
+            parts = line.strip().split()
+            id = int(parts[0])
+            r, g, b = map(int, parts[1].split(','))
+            colors[id] = (b, g, r)
+
+    return colors
+
+def interpolate_color(a, b, d):
+    return tuple(np.round(np.array(a) * (1 - d) + np.array(b) * d).astype(int))
+
+def process_frame(frame_file, a_colors, b_colors, n_points, d):
+    interpolated_colors = dict()
+    for id in range(n_points):
+        a_color = a_colors[id]
+        b_color = b_colors[id]
+        interpolated_colors[id] = interpolate_color(a_color, b_color, d)
+
+    image_path = os.path.join('frames', frame_file)
+    image = cv2.imread(image_path)
+
+    for id in range(n_points):
+        id_r = id & 0xff
+        id_g = (id >> 8) & 0xff
+        id_b = (id >> 16) & 0xff
+        id_col = np.array([id_b, id_g, id_r])
+        interpolated_color = interpolated_colors[id]
+
+        mask = cv2.inRange(image, id_col, id_col)
+        image[mask > 0] = interpolated_color
+
+    cv2.imwrite(image_path, image)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Turn an image into a mosaic")
@@ -38,44 +77,28 @@ if __name__ == '__main__':
                                      interpolate)
 
     Image.fromarray(ids).save("ids.png")
+    Image.fromarray(colors).show()
 
     height = colors.shape[0]
     width = colors.shape[1]
 
-    with tqdm(total=width*height, desc="Drawing borders", leave=False) as pbar:
-        for y in range(height):
-            for x in range(width):
-                center_id = ids[y, x]
-                different = 0
-                for i in range(-1, 2):
-                    if different > 2:
-                        break
-                    for j in range(-1, 2):
-                        xoff = x+i
-                        yoff = y+j
-                        if not (xoff >= 0 and yoff >= 0 and xoff < width and yoff < height):
-                            continue
-                        if (ids[yoff, xoff] != center_id).any():
-                            different += 1
-                        if different > 2:
-                            break
+    if not interpolate:
+        exit(0)
 
-                if different > 0:
-                    darken = [1, 0.9, 0.6, 0.5][different]
-                    r = colors[y, x][0]
-                    g = colors[y, x][1]
-                    b = colors[y, x][2]
-                    colors[y, x] = (r*darken, g*darken, b*darken)
+    a_colors = load_colors("colors_a.txt")
+    b_colors = load_colors("colors_b.txt")
 
-                pbar.update()
+    frame_files = sorted([f for f in os.listdir("frames") if f.endswith('.png')])
+    num_images = len(frame_files)
+
+    with ThreadPoolExecutor() as executor:
+        futures = []
+        for i, frame_file in enumerate(frame_files):
+            d = i / (num_images - 1)
+            futures.append(executor.submit(process_frame, frame_file, a_colors, b_colors, n_points, d))
+
+        for future in tqdm(as_completed(futures), total=len(futures), desc="Processing frames"):
+            future.result()
 
     end = time.time()
-
-    final_image = Image.fromarray(colors)
-    final_image.save(args.output+".png")
-    final_image.show()
-
     print(f"finished in {end-start}")
-
-    polygons = polys.extract_all_polygons(n_points)
-    polys.write_polygons(polygons)
