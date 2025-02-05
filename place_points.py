@@ -79,6 +79,18 @@ def generate_seeds(num_points: int, width: int, height: int,
                         return points
 
 
+def read_seeds():
+    points = []
+    with open("centroids.txt", "r") as file:
+        lines = file.readlines()
+        for line in tqdm(lines, leave=False, desc="Reading centroids"):
+            parts = line.split(' ')
+            points.append(Point(float(parts[1]), float(parts[2]),
+                                int(parts[0])))
+
+    return points
+
+
 def draw_cone_at_point(x: float, y: float, color: int, angle=0.0,
                        base_radius=200, height=7.0, num_slices=20,
                        slope=0.0):
@@ -107,7 +119,7 @@ def draw_point(x, y, size=4):
 
 # Main rendering loop
 # Ritorna la matrice del voronoi colorato e quello di ID
-def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no_timeout=False):
+def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no_timeout=False, interpolate=False):
     edges = get_edges(path, thr, thick)
     if edges is None:
         print("Couldn't get the flowfield")
@@ -146,7 +158,10 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
     mag_image_pixels = np.array([[(x, x, x) if x != 0 else (255, 0, 0) for x in row] for row in mag_image_pixels]).astype(np.uint8)
     Image.fromarray(mag_image_pixels).save("mag.png", format="png")
 
-    points = generate_seeds(n_points, width, height, size_bias)
+    if interpolate:
+        points = read_seeds()
+    else:
+        points = generate_seeds(n_points, width, height, size_bias)
 
     start_time = time.time()
 
@@ -255,19 +270,22 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
             aree_colori[colid][3] += 1
 
     gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
-    for point in points:
-        area_colore = aree_colori[point.color]
-        if area_colore[3] != 0:
-            r = int(area_colore[0]/area_colore[3])
-            g = int(area_colore[1]/area_colore[3])
-            b = int(area_colore[2]/area_colore[3])
-        else:
-            r = 0
-            g = 0
-            b = 0
+    with open("colors.txt", "w") as file:
+        for point in tqdm(points, leave=False, desc="Drawing image"):
+            area_colore = aree_colori[point.color]
+            if area_colore[3] != 0:
+                r = int(area_colore[0]/area_colore[3])
+                g = int(area_colore[1]/area_colore[3])
+                b = int(area_colore[2]/area_colore[3])
+            else:
+                r = 0
+                g = 0
+                b = 0
 
-        draw_cone_at_point(point.x, point.y, ((b << 16) + (g << 8) + r),
-                           base_radius=2 * (width + height))
+            draw_cone_at_point(point.x, point.y, ((b << 16) + (g << 8) + r),
+                               base_radius=2 * (width + height))
+
+            file.write(f"{point.color} {r},{g},{b}\n")
 
     final_image_pixels = np.zeros((height, width, 3), dtype=np.uint8)
     gl.glReadPixels(0, 0, width, height,
@@ -275,6 +293,10 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
     final_image_pixels = np.flip(final_image_pixels, 0)
 
     glfw.terminate()
+
+    with open("centroids.txt", "w") as centroids_file:
+        for point in tqdm(points, leave=False, desc="File dump"):
+            centroids_file.write(f"{point.color} {point.x} {point.y}\n")
 
     return (final_image_pixels, pixel_data)
 

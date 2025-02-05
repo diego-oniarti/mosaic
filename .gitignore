@@ -4,3 +4,7 @@ out
 edges.png
 dist.png
 mag.png
+ids.png
+centroids.txt
+colors.txt
+polygons.txt
