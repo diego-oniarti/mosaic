@@ -243,7 +243,7 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
             point.y = new_y
             point.size = area[2]
 
-        min_dist_cutoff = 1
+        min_dist_cutoff = 0.6
         average_movement /= len(points)
 
         movements.append(average_movement)
@@ -263,13 +263,12 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
 
         if not finished and is_still:
             finished = True
-            print("Finished.")
 
         glfw.swap_buffers(window)
         glfw.poll_events()
 
     bar.close()
-
+    print("Finished.")
     glfw.swap_buffers(window)
 
     # calcola la media dei colori per regione
@@ -324,7 +323,10 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
             for point in tqdm(points, leave=False, desc="File dump"):
                 centroids_file.write(f"{point.color} {point.x} {point.y}\n")
 
-    return (final_image_pixels, movements)
+    with open("movements.txt", "w") as file:
+        file.write(" ".join(map(str, movements)))
+
+    return final_image_pixels
 
 
 if __name__ == "__main__":

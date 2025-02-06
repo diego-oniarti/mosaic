@@ -1,3 +1,4 @@
+import math
 import subprocess
 import os
 import pathlib
@@ -9,6 +10,7 @@ import numpy as np
 import cv2
 from PIL import Image
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
 
 def load_colors(filename):
     colors = dict()
@@ -35,6 +37,7 @@ def process_frame(frame_file, a_colors, b_colors, n_points, d):
 
     image_path = os.path.join('frames', frame_file)
     image = cv2.imread(image_path)
+    out_image_path = os.path.join('frames_color', frame_file)
 
     for id in range(n_points):
         id_r = id & 0xff
@@ -46,7 +49,29 @@ def process_frame(frame_file, a_colors, b_colors, n_points, d):
         mask = cv2.inRange(image, id_col, id_col)
         image[mask > 0] = interpolated_color
 
-    cv2.imwrite(image_path, image)
+    cv2.imwrite(out_image_path, image)
+
+
+def ease_in_out_cubic(t):
+    if t < 0.5:
+        return 4 * t**3
+    else:
+        return 1 - 4 * (1 - t)**3
+
+
+def reverse_ease_in_out_cubic(t):
+    return 1-ease_in_out_cubic(t)
+
+
+def custom_ease(t):
+    if t < 0.5:
+        return pow(t*2, 2 / 3) / 2
+    else:
+        return 1 - (math.sqrt((1-t)*2)/2)  # Steep increase at the end
+
+
+def custom_ease2(t):
+    return 1 - math.sqrt(1-t)
 
 
 if __name__ == '__main__':
@@ -76,14 +101,17 @@ if __name__ == '__main__':
     interpolate = args.interpolate
 
     start = time.time()
-    colors, movements = get_fracture_image(filename, threshold, line_size,
-                                           n_points, args.show, timeout,
-                                           no_timeout, interpolate)
+    colors = get_fracture_image(filename, threshold, line_size,
+                                n_points, args.show, timeout,
+                                no_timeout, interpolate)
 
     Image.fromarray(colors).show()
-
     height = colors.shape[0]
     width = colors.shape[1]
+
+    with open("movements.txt", "r") as file:
+        line = file.readline().strip()
+        movements = list(map(float, line.split(' ')))
 
     if not interpolate:
         exit(0)
@@ -95,7 +123,7 @@ if __name__ == '__main__':
     for movement in movements:
         tot_movements += movement
 
-    video_duration = 3.0  # secondi
+    video_duration = 5.0  # secondi
 
     # rendi la somma dei movements=1
     for i in range(len(movements)):
@@ -104,9 +132,17 @@ if __name__ == '__main__':
     frame_files = sorted([f for f in os.listdir("frames") if f.endswith('.png')])
     num_images = len(frame_files)
 
+    cumulative_weights = np.cumsum(movements)
+    normalizaed_time = cumulative_weights / cumulative_weights[-1]
+    eased_time = np.array([custom_ease(t) for t in normalizaed_time])
+    eased_weights = np.diff(eased_time, prepend=0)
+    eased_weights /= np.sum(eased_weights)
+
+    movements = eased_weights
+
     with open("input.txt", "w") as file:
         for i, frame_name in enumerate(frame_files):
-            file.write(f"file 'frames/{frame_name}'\n")
+            file.write(f"file 'frames_color/{frame_name}'\n")
             file.write(f"duration {(movements[i]*video_duration):.3f}\n")
 
     with ThreadPoolExecutor() as executor:
@@ -129,7 +165,28 @@ if __name__ == '__main__':
             '-f', 'concat',
             '-i', 'input.txt',
             '-vsync', 'vfr',
-            'frames/output.mp4'
+            'frames_color/output.mp4'
+        ], check=True)
+        subprocess.run([
+            'ffmpeg',
+            '-i', 'frames_color/output.mp4',
+            '-vf', "fps=30",
+            '-vsync', 'cfr',
+            'frames_color/output_cfr.mp4'
+        ], check=True)
+        subprocess.run([
+            'ffmpeg',
+            '-i', 'frames_color/output_cfr.mp4',
+            '-vf', "reverse",
+            'frames_color/reversed.mp4'
+        ], check=True)
+        subprocess.run([
+            'ffmpeg',
+            '-i', 'frames_color/output_cfr.mp4',
+            '-i', 'frames_color/reversed.mp4',
+            '-filter_complex', "[0:v][1:v]concat=n=2:v=1:[v]",
+            '-map', "[v]",
+            'frames_color/combined.mp4'
         ], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Error: {e}\n")
