@@ -175,6 +175,7 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
     tot_pixels = width*height
 
     bar = tqdm(leave=False)
+    movements = [] 
     while not (glfw.window_should_close(window)
                or (finished and gap_closer <= 0)):
         if not no_timeout and not finished:
@@ -198,14 +199,15 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
         gl.glReadPixels(0, 0, width, height,
                         gl.GL_RGB, gl.GL_UNSIGNED_BYTE, pixel_data)
 
+        frame_file_name = f"frame_{frame_count:04d}.png"
         if interpolate:
-            Image.fromarray(np.flip(pixel_data, 0)).save(f"frames/frame_{frame_count:04d}.png", format="png")
+            Image.fromarray(np.flip(pixel_data, 0)).save(f"frames/{frame_file_name}", format="png")
             frame_count += 1
 
         bar.set_description("Update centroids")
-        bar.reset(total=tot_pixels)
-        for pix_y in range(height):
-            for pix_x in range(width):
+        bar.reset(total=tot_pixels/4)
+        for pix_y in range(0, height, 2):
+            for pix_x in range(0, width, 2):
                 edges_mask = edges[pix_y, pix_x]
                 if edges_mask[3] != 0 and not finished:
                     continue
@@ -221,6 +223,7 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
 
         is_still = True
         max_dist = 0
+        average_movement = 0
         for point in points:
             area = aree[point.color]
             if area[2] == 0:
@@ -231,6 +234,8 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
             dist = math.sqrt(math.pow(new_x - point.x, 2)
                              + math.pow(new_y - point.y, 2))
 
+            average_movement += dist
+
             if dist > max_dist:
                 max_dist = dist
 
@@ -239,6 +244,9 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
             point.size = area[2]
 
         min_dist_cutoff = 1
+        average_movement /= len(points)
+
+        movements.append(average_movement)
 
         if min_dist > min_dist_cutoff or is_still and dist > min_dist:
             is_still = False
@@ -311,11 +319,12 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
 
     glfw.terminate()
 
-    with open("centroids.txt", "w") as centroids_file:
-        for point in tqdm(points, leave=False, desc="File dump"):
-            centroids_file.write(f"{point.color} {point.x} {point.y}\n")
+    if not interpolate:
+        with open("centroids.txt", "w") as centroids_file:
+            for point in tqdm(points, leave=False, desc="File dump"):
+                centroids_file.write(f"{point.color} {point.x} {point.y}\n")
 
-    return (final_image_pixels, pixel_data)
+    return (final_image_pixels, movements)
 
 
 if __name__ == "__main__":

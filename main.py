@@ -1,3 +1,4 @@
+import subprocess
 import os
 import pathlib
 import argparse
@@ -20,8 +21,10 @@ def load_colors(filename):
 
     return colors
 
+
 def interpolate_color(a, b, d):
     return tuple(np.round(np.array(a) * (1 - d) + np.array(b) * d).astype(int))
+
 
 def process_frame(frame_file, a_colors, b_colors, n_points, d):
     interpolated_colors = dict()
@@ -44,6 +47,7 @@ def process_frame(frame_file, a_colors, b_colors, n_points, d):
         image[mask > 0] = interpolated_color
 
     cv2.imwrite(image_path, image)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Turn an image into a mosaic")
@@ -72,11 +76,10 @@ if __name__ == '__main__':
     interpolate = args.interpolate
 
     start = time.time()
-    colors, ids = get_fracture_image(filename, threshold, line_size, n_points,
-                                     args.show, timeout, no_timeout,
-                                     interpolate)
+    colors, movements = get_fracture_image(filename, threshold, line_size,
+                                           n_points, args.show, timeout,
+                                           no_timeout, interpolate)
 
-    Image.fromarray(ids).save("ids.png")
     Image.fromarray(colors).show()
 
     height = colors.shape[0]
@@ -88,17 +91,45 @@ if __name__ == '__main__':
     a_colors = load_colors("colors_a.txt")
     b_colors = load_colors("colors_b.txt")
 
+    tot_movements = 0
+    for movement in movements:
+        tot_movements += movement
+
+    video_duration = 3.0  # secondi
+
+    # rendi la somma dei movements=1
+    for i in range(len(movements)):
+        movements[i] = movements[i]/tot_movements
+
     frame_files = sorted([f for f in os.listdir("frames") if f.endswith('.png')])
     num_images = len(frame_files)
 
+    with open("input.txt", "w") as file:
+        for i, frame_name in enumerate(frame_files):
+            file.write(f"file 'frames/{frame_name}'\n")
+            file.write(f"duration {(movements[i]*video_duration):.3f}\n")
+
     with ThreadPoolExecutor() as executor:
         futures = []
+        d = 0
         for i, frame_file in enumerate(frame_files):
-            d = i / (num_images - 1)
+            # d = i / (num_images - 1)
             futures.append(executor.submit(process_frame, frame_file, a_colors, b_colors, n_points, d))
+            d += movements[i]
 
         for future in tqdm(as_completed(futures), total=len(futures), desc="Processing frames"):
             future.result()
 
     end = time.time()
     print(f"finished in {end-start}")
+
+    try:
+        subprocess.run([
+            'ffmpeg',
+            '-f', 'concat',
+            '-i', 'input.txt',
+            '-vsync', 'vfr',
+            'frames/output.mp4'
+        ], check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error: {e}\n")
