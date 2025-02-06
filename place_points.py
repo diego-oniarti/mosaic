@@ -72,7 +72,7 @@ def generate_seeds(num_points: int, width: int, height: int,
                     local_bias = probability_bias[y, x]
                     if local_bias == 0:
                         continue
-                    if random.uniform(1, 100) < local_bias*1.1:
+                    if random.uniform(1, 100) < pow(local_bias,1/2)*1.1:
                         points.append(Point(x, y, len(points)))
                         pbar.update()
                     if len(points) == num_points:
@@ -116,6 +116,9 @@ def draw_point(x, y, size=4):
     gl.glVertex3f(x, y, 8)  # Specify the position of the point in 2D space
     gl.glEnd()
 
+
+def interpol(a, b, x):
+    return a*(1-x) + b*x
 
 # Main rendering loop
 # Ritorna la matrice del voronoi colorato e quello di ID
@@ -175,7 +178,7 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
     tot_pixels = width*height
 
     bar = tqdm(leave=False)
-    movements = [] 
+    movements = []
     while not (glfw.window_should_close(window)
                or (finished and gap_closer <= 0)):
         if not no_timeout and not finished:
@@ -205,13 +208,14 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
             frame_count += 1
 
         bar.set_description("Update centroids")
-        bar.reset(total=tot_pixels/4)
-        for pix_y in range(0, height, 2):
-            for pix_x in range(0, width, 2):
+        bar.reset(total=tot_pixels)
+        min_dist_cutoff = 0.6
+        for pix_y in range(0, height, 1):
+            for pix_x in range(0, width, 1):
                 edges_mask = edges[pix_y, pix_x]
                 if edges_mask[3] != 0 and not finished:
                     continue
-                D = size_bias[pix_y, pix_x] + thr/100
+                D = size_bias[pix_y, pix_x] + thr/10
                 col = pixel_data[pix_y, pix_x]
                 colid = (int(col[0]) & 0b11111111) + (int(col[1]) << 8)
 
@@ -231,6 +235,7 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
             # il +0.5 fa funzionare tutto. Non sono sicuro del motivo
             new_x = area[0] / area[2] + 0.5
             new_y = area[1] / area[2] + 0.5
+
             dist = math.sqrt(math.pow(new_x - point.x, 2)
                              + math.pow(new_y - point.y, 2))
 
@@ -243,7 +248,6 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
             point.y = new_y
             point.size = area[2]
 
-        min_dist_cutoff = 0.6
         average_movement /= len(points)
 
         movements.append(average_movement)

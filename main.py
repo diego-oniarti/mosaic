@@ -74,6 +74,10 @@ def custom_ease2(t):
     return 1 - math.sqrt(1-t)
 
 
+def custom_ease3(t):
+    return t
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Turn an image into a mosaic")
 
@@ -105,9 +109,10 @@ if __name__ == '__main__':
                                 n_points, args.show, timeout,
                                 no_timeout, interpolate)
 
-    Image.fromarray(colors).show()
-    height = colors.shape[0]
-    width = colors.shape[1]
+    # Image.fromarray(colors).show()
+
+    image = Image.open(filename)
+    width, height = image.width, image.height
 
     with open("movements.txt", "r") as file:
         line = file.readline().strip()
@@ -123,7 +128,7 @@ if __name__ == '__main__':
     for movement in movements:
         tot_movements += movement
 
-    video_duration = 5.0  # secondi
+    video_duration = len(movements)/60  # secondi
 
     # rendi la somma dei movements=1
     for i in range(len(movements)):
@@ -150,7 +155,8 @@ if __name__ == '__main__':
         d = 0
         for i, frame_file in enumerate(frame_files):
             # d = i / (num_images - 1)
-            futures.append(executor.submit(process_frame, frame_file, a_colors, b_colors, n_points, d))
+            d_ease = ease_in_out_cubic(d)
+            futures.append(executor.submit(process_frame, frame_file, a_colors, b_colors, n_points, d_ease))
             d += movements[i]
 
         for future in tqdm(as_completed(futures), total=len(futures), desc="Processing frames"):
@@ -165,28 +171,59 @@ if __name__ == '__main__':
             '-f', 'concat',
             '-i', 'input.txt',
             '-vsync', 'vfr',
+            '-strict', '-2',
+            '-pix_fmt', 'yuv420p',
+            '-c:v', 'libx264',
+            '-s', f"{width}x{height}",
             'frames_color/output.mp4'
         ], check=True)
+
         subprocess.run([
             'ffmpeg',
             '-i', 'frames_color/output.mp4',
             '-vf', "fps=30",
             '-vsync', 'cfr',
+            '-c:v', 'libx264',
+            '-strict', '-2',
+            '-pix_fmt', 'yuv420p',
+            '-s', f"{width}x{height}",
             'frames_color/output_cfr.mp4'
         ], check=True)
+
         subprocess.run([
             'ffmpeg',
             '-i', 'frames_color/output_cfr.mp4',
             '-vf', "reverse",
+            '-c:v', 'libx264',
+            '-strict', '-2',
+            '-pix_fmt', 'yuv420p',
+            '-s', f"{width}x{height}",
             'frames_color/reversed.mp4'
         ], check=True)
+
         subprocess.run([
             'ffmpeg',
             '-i', 'frames_color/output_cfr.mp4',
             '-i', 'frames_color/reversed.mp4',
             '-filter_complex', "[0:v][1:v]concat=n=2:v=1:[v]",
             '-map', "[v]",
+            '-c:v', 'libx264',
+            '-strict', '-2',
+            '-pix_fmt', 'yuv420p',
+            '-s', f"{width}x{height}",
             'frames_color/combined.mp4'
         ], check=True)
+
+        # Re-encode for final compatibility
+        subprocess.run([
+            'ffmpeg',
+            '-i', 'frames_color/combined.mp4',
+            '-strict', '-2',
+            '-pix_fmt', 'yuv420p',
+            '-c:v', 'libx264',
+            'frames_color/final_output.mp4',
+            '-s', f"{width}x{height}"
+        ], check=True)
+
     except subprocess.CalledProcessError as e:
         print(f"Error: {e}\n")
