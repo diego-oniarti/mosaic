@@ -164,7 +164,8 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
     if interpolate:
         points = read_seeds()
     else:
-        points = generate_seeds(n_points, width, height, size_bias)
+        #points = generate_seeds(n_points, width, height, size_bias)
+        points = generate_random_points(n_points, width, height)
 
     start_time = time.time()
 
@@ -210,12 +211,12 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
         bar.set_description("Update centroids")
         bar.reset(total=tot_pixels)
         min_dist_cutoff = 0.6
-        for pix_y in range(0, height, 1):
-            for pix_x in range(0, width, 1):
+        for pix_y in range(0, height, 2):
+            for pix_x in range(0, width, 2):
                 edges_mask = edges[pix_y, pix_x]
                 if edges_mask[3] != 0 and not finished:
                     continue
-                D = size_bias[pix_y, pix_x] + thr/10
+                D = size_bias[pix_y, pix_x] + 1e-8  # + thr/100
                 col = pixel_data[pix_y, pix_x]
                 colid = (int(col[0]) & 0b11111111) + (int(col[1]) << 8)
 
@@ -241,12 +242,19 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
 
             average_movement += dist
 
+            tmp = 1
+            if dist > tmp:
+                dx = (new_x - point.x)/dist*tmp
+                dy = (new_y - point.y)/dist*tmp
+                new_x = point.x + dx
+                new_y = point.y + dy
+                dist = tmp
+
             if dist > max_dist:
                 max_dist = dist
 
             point.x = new_x
             point.y = new_y
-            point.size = area[2]
 
         average_movement /= len(points)
 
