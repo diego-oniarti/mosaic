@@ -1,4 +1,3 @@
-import math
 import subprocess
 import os
 import pathlib
@@ -29,15 +28,17 @@ def interpolate_color(a, b, d):
 
 
 def process_frame(frame_file, a_colors, b_colors, n_points, d):
+    image_path = os.path.join('frames', frame_file)
+    image = cv2.imread(image_path)
+    out_image_path = os.path.join('frames_color', frame_file)
+    if os.path.isfile(out_image_path):
+        return
+
     interpolated_colors = dict()
     for id in range(n_points):
         a_color = a_colors[id]
         b_color = b_colors[id]
         interpolated_colors[id] = interpolate_color(a_color, b_color, d)
-
-    image_path = os.path.join('frames', frame_file)
-    image = cv2.imread(image_path)
-    out_image_path = os.path.join('frames_color', frame_file)
 
     for id in range(n_points):
         id_r = id & 0xff
@@ -46,8 +47,20 @@ def process_frame(frame_file, a_colors, b_colors, n_points, d):
         id_col = np.array([id_b, id_g, id_r])
         interpolated_color = interpolated_colors[id]
 
+        # Create a mask for the current color
         mask = cv2.inRange(image, id_col, id_col)
+
+        # Replace the color in the image
         image[mask > 0] = interpolated_color
+
+        # Create an inner border using erosion
+        kernel = np.ones((3, 3), np.uint8)  # Kernel for erosion
+        eroded_mask = cv2.erode(mask, kernel, iterations=1)
+        inner_border_mask = mask - eroded_mask
+
+        # Darken the inner border pixels
+        darken_factor = 0.5  # Adjust this value to control the darkness
+        image[inner_border_mask > 0] = image[inner_border_mask > 0] * darken_factor
 
     cv2.imwrite(out_image_path, image)
 
@@ -65,17 +78,17 @@ def reverse_ease_in_out_cubic(t):
 
 def custom_ease(t):
     if t < 0.5:
-        return pow(t*2, 2 / 3) / 2
+        return pow(t*2, 1 / 2) / 2
     else:
-        return 1 - (math.sqrt((1-t)*2)/2)  # Steep increase at the end
+        return 1 - (pow((1-t)*2, 1/2)/2)  # Steep increase at the end
 
 
 def custom_ease2(t):
-    return 1 - math.sqrt(1-t)
+    return 1 - pow(1-t, 2/5)
 
 
 def custom_ease3(t):
-    return t
+    return 1 - pow(1-t, 2)
 
 
 if __name__ == '__main__':
@@ -92,6 +105,13 @@ if __name__ == '__main__':
     parser.add_argument('-i', '--interpolate', action='store_true', help="Initializas the centroids with last image's centroids")
 
     pathlib.Path("out").mkdir(exist_ok=True)
+    pathlib.Path("frames").mkdir(exist_ok=True)
+    pathlib.Path("frames_color").mkdir(exist_ok=True)
+
+    for file in os.listdir("frames"):
+        os.remove(os.path.join("frames", file))
+    for file in os.listdir("frames_color"):
+        os.remove(os.path.join("frames_color", file))
 
     # Parse arguments
     args = parser.parse_args()
@@ -139,7 +159,7 @@ if __name__ == '__main__':
 
     cumulative_weights = np.cumsum(movements)
     normalizaed_time = cumulative_weights / cumulative_weights[-1]
-    eased_time = np.array([custom_ease(t) for t in normalizaed_time])
+    eased_time = np.array([custom_ease2(t) for t in normalizaed_time])
     eased_weights = np.diff(eased_time, prepend=0)
     eased_weights /= np.sum(eased_weights)
 

@@ -216,7 +216,7 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
                 edges_mask = edges[pix_y, pix_x]
                 if edges_mask[3] != 0 and not finished:
                     continue
-                D = size_bias[pix_y, pix_x] + 1e-8  # + thr/100
+                D = size_bias[pix_y, pix_x] + 1e-7  # + thr/100
                 col = pixel_data[pix_y, pix_x]
                 colid = (int(col[0]) & 0b11111111) + (int(col[1]) << 8)
 
