@@ -11,6 +11,10 @@ from PIL import Image
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
+def lerp(a, b, x):
+    return a*(1-x) + b*x
+
+
 def load_colors(filename):
     colors = dict()
     with open(filename, 'r') as file:
@@ -59,7 +63,7 @@ def process_frame(frame_file, a_colors, b_colors, n_points, d):
         inner_border_mask = mask - eroded_mask
 
         # Darken the inner border pixels
-        darken_factor = 0.5  # Adjust this value to control the darkness
+        darken_factor = 0.75  # Adjust this value to control the darkness
         image[inner_border_mask > 0] = image[inner_border_mask > 0] * darken_factor
 
     cv2.imwrite(out_image_path, image)
@@ -77,10 +81,15 @@ def reverse_ease_in_out_cubic(t):
 
 
 def custom_ease(t):
+    # if t < 0.5:
+    #     return pow(t*2, 1 / 2) / 2
+    # else:
+    #     return 1 - (pow((1-t)*2, 1/2)/2)  # Steep increase at the end
+    n = 5
     if t < 0.5:
-        return pow(t*2, 1 / 2) / 2
+        return pow(2*t, 1/n)/2
     else:
-        return 1 - (pow((1-t)*2, 1/2)/2)  # Steep increase at the end
+        return 1 - pow((1-t)*2, 1/n)/2
 
 
 def custom_ease2(t):
@@ -88,7 +97,11 @@ def custom_ease2(t):
 
 
 def custom_ease3(t):
-    return 1 - pow(1-t, 2)
+    n = 3
+    if t < 0.1:
+        return pow(t*10, 1/n)/10
+    else:
+        return 1-pow((1-t)/0.9, 1/n)*0.9
 
 
 if __name__ == '__main__':
@@ -148,7 +161,7 @@ if __name__ == '__main__':
     for movement in movements:
         tot_movements += movement
 
-    video_duration = len(movements)/60  # secondi
+    video_duration = len(movements)/15 # secondi
 
     # rendi la somma dei movements=1
     for i in range(len(movements)):
@@ -159,7 +172,7 @@ if __name__ == '__main__':
 
     cumulative_weights = np.cumsum(movements)
     normalizaed_time = cumulative_weights / cumulative_weights[-1]
-    eased_time = np.array([custom_ease2(t) for t in normalizaed_time])
+    eased_time = np.array([custom_ease3(t) for t in normalizaed_time])
     eased_weights = np.diff(eased_time, prepend=0)
     eased_weights /= np.sum(eased_weights)
 
@@ -185,6 +198,10 @@ if __name__ == '__main__':
     end = time.time()
     print(f"finished in {end-start}")
 
+    if width % 2 != 0:
+        width -= 1  # or width += 1, depending on your preference
+    if height % 2 != 0:
+        height -= 1  # or height += 1, depending on your preference
     try:
         subprocess.run([
             'ffmpeg',

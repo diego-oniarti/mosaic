@@ -153,7 +153,7 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
         return
 
     thr = 1
-    exp = 20
+    exp = 10
     size_bias = (thr - np.clip(distance_transform, 0, thr))/thr
     size_bias = pow(size_bias, exp)
 
@@ -164,8 +164,8 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
     if interpolate:
         points = read_seeds()
     else:
-        #points = generate_seeds(n_points, width, height, size_bias)
-        points = generate_random_points(n_points, width, height)
+        points = generate_seeds(n_points, width, height, size_bias)
+        # points = generate_random_points(n_points, width, height)
 
     start_time = time.time()
 
@@ -228,7 +228,9 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
 
         is_still = True
         max_dist = 0
-        average_movement = 0
+        total_movement = 0
+
+        delta_pos = dict()
         for point in points:
             area = aree[point.color]
             if area[2] == 0:
@@ -237,26 +239,28 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
             new_x = area[0] / area[2] + 0.5
             new_y = area[1] / area[2] + 0.5
 
-            dist = math.sqrt(math.pow(new_x - point.x, 2)
-                             + math.pow(new_y - point.y, 2))
+            dx = (new_x - point.x)
+            dy = (new_y - point.y)
 
-            average_movement += dist
+            dist = math.sqrt(math.pow(dx, 2)
+                             + math.pow(dy, 2))
 
-            tmp = 1
-            if dist > tmp:
-                dx = (new_x - point.x)/dist*tmp
-                dy = (new_y - point.y)/dist*tmp
-                new_x = point.x + dx
-                new_y = point.y + dy
-                dist = tmp
+            delta_pos[point.color] = (dx, dy)
+
+            total_movement += dist
 
             if dist > max_dist:
                 max_dist = dist
 
-            point.x = new_x
-            point.y = new_y
-
-        average_movement /= len(points)
+        average_movement = total_movement / n_points
+        movement_multiplier = 1
+        average_movement_top = 0.75
+        if average_movement > average_movement_top:
+            movement_multiplier = average_movement_top / average_movement
+            average_movement = average_movement_top
+        for i in delta_pos.keys():
+            points[i].x += delta_pos[i][0] * movement_multiplier
+            points[i].y += delta_pos[i][1] * movement_multiplier
 
         movements.append(average_movement)
 
