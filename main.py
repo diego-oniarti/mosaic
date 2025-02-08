@@ -161,7 +161,7 @@ if __name__ == '__main__':
     for movement in movements:
         tot_movements += movement
 
-    video_duration = len(movements)/15 # secondi
+    video_duration = len(movements)/60  # secondi
 
     # rendi la somma dei movements=1
     for i in range(len(movements)):
@@ -214,10 +214,15 @@ if __name__ == '__main__':
             '-s', f"{width}x{height}",
             'frames_color/output.mp4'
         ], check=True)
-
         subprocess.run([
             'ffmpeg',
             '-i', 'frames_color/output.mp4',
+            '-vf', 'tpad=stop_mode=clone:stop_duration=0.1',
+            'frames_color/output_padded.mp4'
+        ], check=True)
+        subprocess.run([
+            'ffmpeg',
+            '-i', 'frames_color/output_padded.mp4',
             '-vf', "fps=30",
             '-vsync', 'cfr',
             '-c:v', 'libx264',
