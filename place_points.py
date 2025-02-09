@@ -122,7 +122,7 @@ def interpol(a, b, x):
 
 # Main rendering loop
 # Ritorna la matrice del voronoi colorato e quello di ID
-def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no_timeout=False, interpolate=False):
+def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no_timeout=False, interpolate=False, limit_dist=False):
     edges = get_edges(path, thr, thick)
     if edges is None:
         print("Couldn't get the flowfield")
@@ -152,7 +152,7 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
         print("Failed to create GLFW window")
         return
 
-    thr = 1
+    thr = 0.1
     exp = 10
     size_bias = (thr - np.clip(distance_transform, 0, thr))/thr
     size_bias = pow(size_bias, exp)
@@ -164,8 +164,8 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
     if interpolate:
         points = read_seeds()
     else:
-        points = generate_seeds(n_points, width, height, size_bias)
-        # points = generate_random_points(n_points, width, height)
+        # points = generate_seeds(n_points, width, height, size_bias)
+        points = generate_random_points(n_points, width, height)
 
     start_time = time.time()
 
@@ -216,7 +216,7 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
                 edges_mask = edges[pix_y, pix_x]
                 if edges_mask[3] != 0 and not finished:
                     continue
-                D = size_bias[pix_y, pix_x] + 1e-7  # + thr/100
+                D = size_bias[pix_y, pix_x] + thr/10000
                 col = pixel_data[pix_y, pix_x]
                 colid = (int(col[0]) & 0b11111111) + (int(col[1]) << 8)
 
@@ -254,7 +254,7 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
 
         average_movement = total_movement / n_points
         movement_multiplier = 1
-        average_movement_top = 0.75
+        average_movement_top = 1.5 if limit_dist else (width+height)
         if average_movement > average_movement_top:
             movement_multiplier = average_movement_top / average_movement
             average_movement = average_movement_top
