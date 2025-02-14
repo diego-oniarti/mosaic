@@ -63,7 +63,7 @@ def process_frame(frame_file, a_colors, b_colors, n_points, d):
         inner_border_mask = mask - eroded_mask
 
         # Darken the inner border pixels
-        darken_factor = 0.75  # Adjust this value to control the darkness
+        darken_factor = 0.9  # Adjust this value to control the darkness
         image[inner_border_mask > 0] = image[inner_border_mask > 0] * darken_factor
 
     cv2.imwrite(out_image_path, image)

@@ -4,7 +4,7 @@ import numpy as np
 from PIL import Image
 
 def get_edges(image_path: str, threshold: float, edge_thickness: int):
-    '''Reads an image, applies Sobel edge detection, and returns a binary image with white edges and transparent background.'''
+    '''Reads an image, applies Laplacian edge detection, and returns a binary image with white edges and transparent background.'''
 
     # Load image
     image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
@@ -12,18 +12,14 @@ def get_edges(image_path: str, threshold: float, edge_thickness: int):
         print(f"Error: Could not load image from {image_path}")
         return None
 
-    # Step 1: Apply Sobel filter to detect edges
-    sobel_x = cv2.Sobel(image, cv2.CV_64F, 1, 0, ksize=5)  # Sobel in X direction
-    sobel_y = cv2.Sobel(image, cv2.CV_64F, 0, 1, ksize=5)  # Sobel in Y direction
-
-    # Compute gradient magnitude (hypotenuse of x and y)
-    sobel_magnitude = np.sqrt(sobel_x**2 + sobel_y**2)
-
-    # Normalize the gradient magnitude to [0, 255] for better visualization
-    sobel_magnitude = cv2.normalize(sobel_magnitude, None, 0, 255, cv2.NORM_MINMAX)
+    # Step 1: Apply Laplacian filter to detect edges
+    laplacian = cv2.Laplacian(image, cv2.CV_64F, ksize=5)
+    laplacian_abs = np.absolute(laplacian)
+    laplacian_normalized = cv2.normalize(laplacian_abs, None, 0, 255, cv2.NORM_MINMAX)
 
     # Step 2: Apply threshold to get binary edge image
-    _, binary_edges = cv2.threshold(sobel_magnitude, (1.0-threshold)*255, 255, cv2.THRESH_BINARY)
+    _, binary_edges = cv2.threshold(laplacian_normalized, (1.0 - threshold) * 255, 255, cv2.THRESH_BINARY)
+    binary_edges = binary_edges.astype(np.uint8)  # Convert to uint8 for consistent processing
 
     # Step 3: Apply dilation to thicken edges based on edge_thickness
     if edge_thickness > 0:
