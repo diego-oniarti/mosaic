@@ -63,7 +63,7 @@ def process_frame(frame_file, a_colors, b_colors, n_points, d):
         inner_border_mask = mask - eroded_mask
 
         # Darken the inner border pixels
-        darken_factor = 0.9  # Adjust this value to control the darkness
+        darken_factor = 0.75
         image[inner_border_mask > 0] = image[inner_border_mask > 0] * darken_factor
 
     cv2.imwrite(out_image_path, image)
@@ -213,60 +213,69 @@ if __name__ == '__main__':
             '-strict', '-2',
             '-pix_fmt', 'yuv420p',
             '-c:v', 'libx264',
-            '-s', f"{width}x{height}",
+            '-vf', f"scale={width}:{height}:flags=lanczos",  # High-quality scaling
+            '-b:v', '2M',  # Higher bitrate for better quality
             'frames_color/output.mp4'
         ], check=True)
+
+        # Step 2: Add padding (if needed) without re-encoding
         subprocess.run([
             'ffmpeg',
             '-i', 'frames_color/output.mp4',
             '-vf', 'tpad=stop_mode=clone:stop_duration=0.1',
+            '-c:v', 'libx264',
+            '-b:v', '2M',  # Maintain high bitrate
             'frames_color/output_padded.mp4'
         ], check=True)
+
+        # Step 3: Convert to constant frame rate (CFR) without re-encoding
         subprocess.run([
             'ffmpeg',
             '-i', 'frames_color/output_padded.mp4',
             '-vf', "fps=30",
             '-vsync', 'cfr',
             '-c:v', 'libx264',
+            '-b:v', '2M',  # Maintain high bitrate
             '-strict', '-2',
             '-pix_fmt', 'yuv420p',
-            '-s', f"{width}x{height}",
             'frames_color/output_cfr.mp4'
         ], check=True)
 
+        # Step 4: Create a reversed version of the video
         subprocess.run([
             'ffmpeg',
             '-i', 'frames_color/output_cfr.mp4',
             '-vf', "reverse",
             '-c:v', 'libx264',
+            '-b:v', '2M',  # Maintain high bitrate
             '-strict', '-2',
             '-pix_fmt', 'yuv420p',
-            '-s', f"{width}x{height}",
             'frames_color/reversed.mp4'
         ], check=True)
 
+        # Step 5: Combine original and reversed videos
         subprocess.run([
             'ffmpeg',
             '-i', 'frames_color/output_cfr.mp4',
             '-i', 'frames_color/reversed.mp4',
-            '-filter_complex', "[0:v][1:v]concat=n=2:v=1:[v]",
+            '-filter_complex', "[0:v][1:v]concat=n=2:v=1[v]",
             '-map', "[v]",
             '-c:v', 'libx264',
+            '-b:v', '2M',  # Maintain high bitrate
             '-strict', '-2',
             '-pix_fmt', 'yuv420p',
-            '-s', f"{width}x{height}",
             'frames_color/combined.mp4'
         ], check=True)
 
-        # Re-encode for final compatibility
+        # Step 6: Final re-encode for compatibility (if absolutely necessary)
         subprocess.run([
             'ffmpeg',
             '-i', 'frames_color/combined.mp4',
             '-strict', '-2',
             '-pix_fmt', 'yuv420p',
             '-c:v', 'libx264',
-            'frames_color/final_output.mp4',
-            '-s', f"{width}x{height}"
+            '-b:v', '2M',  # Maintain high bitrate
+            'frames_color/final_output.mp4'
         ], check=True)
 
     except subprocess.CalledProcessError as e:
