@@ -110,6 +110,7 @@ if __name__ == '__main__':
     parser.add_argument('filepath', type=str, help="Path to the input image")
     parser.add_argument('-t', '--threshold', type=float, default=0.8, help="Threshold for the edge detection.")
     parser.add_argument('-l', '--line_size', type=int, default=0, help="How much to bolden the edge lines")
+    parser.add_argument('-e', '--edges_only', action='store_true', help="Generate edge/magnitude images and stop")
     parser.add_argument('-n', '--n_points', type=int, default=500, help="Number of pieces in the mosaic")
     parser.add_argument('-s', '--show', action='store_true', help="Shows the window with the voronoi status")
     parser.add_argument('-T', '--timeout', type=int, default=60, help="Upperbound to the processing time. Expressed in seconds")
@@ -138,13 +139,25 @@ if __name__ == '__main__':
     no_timeout = args.no_timeout
     interpolate = args.interpolate
     limit_dist = args.limit_dist
+    edges_only = args.edges_only
 
     start = time.time()
     colors = get_fracture_image(filename, threshold, line_size,
                                 n_points, args.show, timeout,
-                                no_timeout, interpolate, limit_dist)
+                                no_timeout, interpolate, limit_dist,
+                                edges_only)
 
-    # Image.fromarray(colors).show()
+    if edges_only:
+        print("Edges generated (edges.png, dist.png, mag.png)")
+        exit(0)
+
+    if colors is None:
+        print("Failed to generate mosaic")
+        exit(1)
+
+    output_path = args.output
+    Image.fromarray(colors).save(f"{output_path}.png")
+    Image.fromarray(colors).show()
 
     image = Image.open(filename)
     width, height = image.width, image.height

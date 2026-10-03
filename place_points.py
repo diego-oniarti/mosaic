@@ -122,7 +122,7 @@ def interpol(a, b, x):
 
 # Main rendering loop
 # Ritorna la matrice del voronoi colorato e quello di ID
-def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no_timeout=False, interpolate=False, limit_dist=False):
+def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no_timeout=False, interpolate=False, limit_dist=False, edges_only=False):
     edges = get_edges(path, thr, thick)
     if edges is None:
         print("Couldn't get the flowfield")
@@ -161,11 +161,15 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
     mag_image_pixels = np.array([[(x, x, x) if x != 0 else (255, 0, 0) for x in row] for row in mag_image_pixels]).astype(np.uint8)
     Image.fromarray(mag_image_pixels).save("mag.png", format="png")
 
+    if edges_only:
+        glfw.terminate()
+        return None
+
     if interpolate:
         points = read_seeds()
     else:
-        # points = generate_seeds(n_points, width, height, size_bias)
-        points = generate_random_points(n_points, width, height)
+        points = generate_seeds(n_points, width, height, size_bias)
+        # points = generate_random_points(n_points, width, height)
 
     start_time = time.time()
 
@@ -303,10 +307,13 @@ def get_fracture_image(path, thr, thick, n_points, visible=False, timeout=30, no
             colid = (int(col[0]) & 0b11111111) + (int(col[1]) << 8)
 
             image_color = image.getpixel((pix_x, pix_y))
-            aree_colori[colid][0] += image_color[0]
-            aree_colori[colid][1] += image_color[1]
-            aree_colori[colid][2] += image_color[2]
-            aree_colori[colid][3] += 1
+            try:
+                aree_colori[colid][0] += image_color[0]
+                aree_colori[colid][1] += image_color[1]
+                aree_colori[colid][2] += image_color[2]
+                aree_colori[colid][3] += 1
+            except:
+                pass
 
     gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
     colors_file_name = "colors_a.txt" if not interpolate else "colors_b.txt"
